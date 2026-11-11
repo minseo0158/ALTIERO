@@ -366,7 +366,8 @@ button.memo-view{display:block;width:100%;text-align:left;border:0;color:var(--i
       </div>
       <textarea id="impText" spellcheck="false" placeholder="DB나 엑셀 화면에서 복사해 그대로 붙여넣으세요.&#10;&#10;010-1234-5678  34평 관심&#10;01098765432, 모델하우스 방문"></textarea>
       <div class="help">한 줄에 한 사람. 이름·번호·메모 순서는 상관없어요. 엑셀에서 앞자리 0이 빠진 번호(1012345678)도 자동으로 고쳐요.</div>
-      <div class="tools"><span></span><button type="button" class="linkbtn" data-act="example">예시 명단으로 해보기</button></div>
+      <div class="tools"><label class="filebtn" for="impPhoto">사진에서 번호 읽기<input id="impPhoto" type="file" accept="image/*" multiple></label><button type="button" class="linkbtn" data-act="example">예시 명단으로 해보기</button></div>
+      <div class="help" id="ocrMsg" hidden></div>
     </div>
     <div class="pv" id="impPreview" hidden></div>
     <div class="btns">
@@ -1321,7 +1322,7 @@ async function saveImport(){
     S.currentId = id; prefs.set('current', id);
     S.filter = 'todo'; S.q = ''; $('#search').value = '';
     closeModal();
-    $('#impText').value = ''; $('#impName').value = ''; $('#impName').dataset.auto = '1'; updatePreview();
+    $('#impText').value = ''; $('#impName').value = ''; $('#impName').dataset.auto = '1'; updatePreview(); ocrMsg('');
     openList(id);
     location.hash = 'calls';
     toast(r.contacts.length + '명 목록을 만들었어요');
@@ -1442,6 +1443,66 @@ $('#impFile').addEventListener('change', async function(e){
     updatePreview();
   } catch(err){ toast('파일을 읽지 못했어요. 내용을 복사해서 붙여넣어 주세요.'); }
   e.target.value = '';
+});
+/* ---------- photo → numbers (runs in the browser) ---------- */
+var OCR_SRC = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js', ocrLoad = null, ocrBusy = false;
+function loadOcr(){
+  if (window.Tesseract) return Promise.resolve();
+  if (!ocrLoad) ocrLoad = new Promise(function(res, rej){
+    var sc = document.createElement('script'); sc.src = OCR_SRC;
+    sc.onload = function(){ window.Tesseract ? res() : rej(new Error('ocr')); };
+    sc.onerror = function(){ ocrLoad = null; rej(new Error('ocr')); };
+    document.head.appendChild(sc);
+  });
+  return ocrLoad;
+}
+function shrinkImage(file){
+  return new Promise(function(res){
+    var url = URL.createObjectURL(file), img = new Image();
+    img.onload = function(){
+      var MAX = 2200, k = Math.min(1, MAX / Math.max(img.width, img.height));
+      var c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url); res(c);
+    };
+    img.onerror = function(){ URL.revokeObjectURL(url); res(file); };
+    img.src = url;
+  });
+}
+function phonesFromOcr(text){
+  var out = [];
+  String(text || '').split(/\n/).forEach(function(line){
+    var fixed = line.replace(/(^|[^A-Za-z])([\dOoIl|][\dOoIl| ().\-]{6,}[\dOoIl|])/g, function(all, pre, run){
+      return pre + ((run.match(/\d/g) || []).length >= 6 ? run.replace(/[Oo]/g, '0').replace(/[Il|]/g, '1') : run);
+    });
+    findPhones(fixed).forEach(function(ph){ if (out.indexOf(ph) < 0) out.push(ph); });
+  });
+  return out;
+}
+function ocrMsg(t){ var m = $('#ocrMsg'); m.hidden = !t; m.textContent = t || ''; }
+$('#impPhoto').addEventListener('change', async function(e){
+  var files = Array.prototype.slice.call(e.target.files || []); e.target.value = '';
+  if (!files.length || ocrBusy) return;
+  ocrBusy = true; var worker = null;
+  try {
+    ocrMsg('사진 인식 준비 중… (처음엔 조금 걸려요)');
+    await loadOcr();
+    worker = await window.Tesseract.createWorker('eng');
+    var found = [];
+    for (var i = 0; i < files.length; i++) {
+      ocrMsg('사진 읽는 중… ' + (i + 1) + '/' + files.length);
+      var r = await worker.recognize(await shrinkImage(files[i]));
+      phonesFromOcr(r && r.data && r.data.text).forEach(function(ph){ if (found.indexOf(ph) < 0) found.push(ph); });
+    }
+    if (!found.length) { ocrMsg('번호를 찾지 못했어요. 더 밝고 반듯하게 찍은 사진으로 다시 해보세요.'); }
+    else {
+      var ta = $('#impText'), cur = ta.value.replace(/\s+$/, '');
+      ta.value = (cur ? cur + '\n' : '') + found.map(fmt).join('\n');
+      updatePreview();
+      ocrMsg('번호 ' + found.length + '개를 읽었어요. 사진과 맞는지 확인하고 틀린 번호는 위에서 고쳐 주세요.');
+    }
+  } catch(err){ ocrMsg('사진 인식을 쓸 수 없어요. 인터넷 연결을 확인하거나, 사진 앱에서 글자를 복사해 붙여넣어 주세요.'); }
+  if (worker) { try { await worker.terminate(); } catch(_){} }
+  ocrBusy = false;
 });
 window.addEventListener('resize', setDockH);
 
