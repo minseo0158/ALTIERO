@@ -1134,7 +1134,7 @@ function renderHome(){
     '<button type="button" class="btn wide" data-go="visits">방문예정 보기</button></section>';
   if (has) h += '<button type="button" class="btn wide" data-act="import">+ 통화명단 추가</button>';
   h = myCountHTML() + h;
-  if (!T.joined) h += '<div class="homefoot"><button type="button" class="linkbtn" data-go="team">마스터 · 직원 콜량 보기</button></div>';
+  if (T.pw && !T.joined) h += '<div class="homefoot"><button type="button" class="linkbtn" data-go="team">마스터 · 직원 콜량 보기</button></div>';
   $('#homeBody').innerHTML = h;
 }
 function route(){ var h = (location.hash || '').replace('#', ''); return h === 'calls' || h === 'visits' || h === 'team' ? h : 'home'; }
