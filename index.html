@@ -301,6 +301,11 @@ button.memo-view{display:block;width:100%;text-align:left;border:0;color:var(--i
 .trow-h .n small{font-family:var(--font-body);font-size:13px;color:var(--muted);font-weight:400;margin-left:3px}
 .tmsg{font-size:14px;color:var(--reject)}
 .field input[type="password"],.field input[type="url"]{width:100%;border:1px solid var(--line);border-radius:12px;background:var(--bg);padding:12px;font-size:16px}
+.tvday{font-weight:700;font-size:15px;margin-top:4px}
+.tvrow{display:flex;gap:10px;align-items:baseline;padding:8px 0;border-top:1px solid var(--line);font-size:15px}
+.tvrow .t{min-width:4.5em;color:var(--muted);font-variant-numeric:tabular-nums}
+.tvrow .w{font-weight:600;flex:1;overflow-wrap:anywhere}
+.tvrow .e{color:var(--muted);font-size:13px;white-space:nowrap}
 .homefoot{display:flex;justify-content:center;padding-top:4px}
 
 @media (min-width:700px){
@@ -1029,9 +1034,9 @@ function parseVisit(text){
     if (m[1] === '다음') diff += 7;
     date = addDays(today, diff); dstr = m[0];
   }
-  var mins = null, tstr = '', tm = (dstr ? t.replace(dstr, ' ') : t).match(/(오전|오후|아침|낮|저녁|밤)?\s*(\d{1,2})\s*(?:시|:)\s*(?:(\d{1,2})\s*분?|(반))?/);
+  var mins = null, tstr = '', tm = (dstr ? t.replace(dstr, ' ') : t).match(/(오전|오후|아침|낮|저녁|밤)?\s*(\d{1,2})\s*(?:시\s*(?:(\d{1,2})\s*분|(반))?|:\s*(\d{2}))/);
   if (tm) {
-    var h = +tm[2], mi = tm[4] ? 30 : (tm[3] ? +tm[3] : 0), ap = tm[1];
+    var h = +tm[2], mi = tm[4] ? 30 : (tm[3] ? +tm[3] : tm[5] ? +tm[5] : 0), ap = tm[1];
     if (h <= 24 && mi < 60) {
       if (ap && /오후|낮|저녁|밤/.test(ap) && h < 12) h += 12;
       else if (ap && /오전|아침/.test(ap) && h === 12) h = 0;
@@ -1589,6 +1594,13 @@ function todayCounts(){
   else add(S.status);
   return c;
 }
+// 오늘 이후 방문예정 (날짜 없는 건 최근 7일 안에 적은 것만)
+function myVisits(){
+  var t0 = startOfToday(), wk = Date.now() - 7 * 864e5;
+  return gatherVisits().filter(function(x){ return x.date ? x.date >= t0 : (x.s.st || 0) >= wk; }).map(function(x){
+    return { d:x.date ? ymd(x.date) : '', t:x.mins != null ? fmtHM(x.mins) : '', m:x.mins != null ? x.mins : 9999, who:x.who || '', memo:(x.s.visit || '').slice(0, 200) };
+  });
+}
 function sumC(c){ return REP_KEYS.reduce(function(a, k){ return a + (Number(c[k]) || 0); }, 0); }
 function statGrid(c){ return '<div class="tstats">' + REP_KEYS.map(function(k){ return '<div><b>' + (Number(c[k]) || 0) + '</b><span>' + STATUS[k].label + '</span></div>'; }).join('') + '</div>'; }
 
@@ -1607,11 +1619,11 @@ async function postJSON(body){
 }
 async function sendReport(){
   if (!T.url || !T.name) return;
-  var c = todayCounts(), date = ymd(new Date()), sig = JSON.stringify([date, T.name, c]);
+  var c = todayCounts(), date = ymd(new Date()), v = myVisits(), sig = JSON.stringify([date, T.name, c, v]);
   if (sig === rep.sig && rep.state !== 'fail') return;
   if (rep.busy) { rep.again = true; return; }
   rep.busy = true; rep.state = 'sending'; refreshMine();
-  var ok = await postJSON({ dev:T.dev, name:T.name, date:date, c:c });
+  var ok = await postJSON({ dev:T.dev, name:T.name, date:date, c:c, v:v });
   rep.busy = false;
   if (ok) { rep.sig = sig; rep.at = Date.now(); rep.state = 'ok'; prefs.set('team:sig', sig); prefs.set('team:at', rep.at); }
   else { rep.state = 'fail'; clearTimeout(rep.retry); rep.retry = setTimeout(scheduleReport, 30000); }
@@ -1650,7 +1662,7 @@ async function teamFetch(){
   T.loading = true; renderTeam();
   try {
     var j = await teamGet(T.url, T.pw);
-    if (j && j.ok) T.data = { rows:j.rows || [], at:Date.now(), err:'' };
+    if (j && j.ok) T.data = { rows:j.rows || [], visits:j.visits || [], at:Date.now(), err:'' };
     else if (j && j.err === 'pw') { T.pw = ''; prefs.set('team:pw', ''); T.data = null; T.setupMsg = '비밀번호가 달라요. 다시 넣어 주세요.'; }
     else T.data = Object.assign({ rows:[] }, T.data, { err:'불러오지 못했어요.' });
   } catch(e){ T.data = Object.assign({ rows:[] }, T.data, { err:'불러오지 못했어요. 인터넷 연결을 확인하고 새로고침을 눌러 주세요.' }); }
@@ -1666,7 +1678,7 @@ async function teamConnect(){
     var j = await teamGet(u, pw);
     if (j && j.ok) {
       T.url = u; T.pw = pw; prefs.set('team:url', u); prefs.set('team:pw', pw);
-      T.data = { rows:j.rows || [], at:Date.now(), err:'' }; T.setupShown = false; T.setupMsg = '';
+      T.data = { rows:j.rows || [], visits:j.visits || [], at:Date.now(), err:'' }; T.setupShown = false; T.setupMsg = '';
       renderTeam(); toast('연결했어요'); return;
     }
     msg.textContent = j && j.err === 'pw' ? '비밀번호가 달라요. 시트 코드에 적은 비밀번호를 넣어 주세요.' : '연결하지 못했어요. 주소를 다시 확인해 주세요.';
@@ -1698,9 +1710,25 @@ function renderTeam(){
     h += '<section class="trow"><div class="trow-h"><span class="w">' + esc(r.name || '이름 없음') + '</span><span class="n">' + (Number(r.total) || 0) + '<small>콜</small></span></div>' +
       statGrid(r) + '<div class="tfoot"><span>' + (r.at ? hm(r.at) + ' 마지막 보고' : '') + '</span></div></section>';
   });
+  h += teamVisitsHTML(T.data.visits || []);
   h += '<button type="button" class="btn primary wide" data-act="team-link">직원용 링크 복사</button>' +
     '<div class="homefoot"><button type="button" class="linkbtn" data-act="team-reset">비밀번호 다시 넣기</button></div>';
   box.innerHTML = h;
+}
+function teamVisitsHTML(vs){
+  var h = '<section class="hcard"><div class="hk">방문예정 · 전체 ' + vs.length + '건</div>';
+  if (!vs.length) return h + '<p>아직 잡힌 방문이 없어요.</p></section>';
+  var t0 = ymd(new Date()), t1 = ymd(addDays(startOfToday(), 1)), cur = null;
+  vs.forEach(function(v){
+    if (v.d !== cur) {
+      cur = v.d;
+      var lab = '날짜 미정';
+      if (v.d) { var a = v.d.split('-'); lab = fmtDay(new Date(+a[0], +a[1] - 1, +a[2])) + (v.d === t0 ? ' · 오늘' : v.d === t1 ? ' · 내일' : ''); }
+      h += '<div class="tvday">' + esc(lab) + '</div>';
+    }
+    h += '<div class="tvrow"><span class="t">' + esc(v.t || '시간 미정') + '</span><span class="w">' + esc(v.who || '이름 없음') + '</span><span class="e">' + esc(v.name || '') + '</span></div>';
+  });
+  return h + '</section>';
 }
 setInterval(function(){ if (route() === 'team' && document.visibilityState === 'visible' && T.url && T.pw) teamFetch(); }, 60000);
 document.addEventListener('visibilitychange', function(){
