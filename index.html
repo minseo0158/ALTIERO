@@ -1463,6 +1463,7 @@ document.addEventListener('click', function(e){
     case 'name-save': saveName(); break;
     case 'team-connect': teamConnect(); break;
     case 'team-refresh': teamFetch(); break;
+    case 'team-del': teamDel(el.dataset.dev); break;
     case 'team-link': copyText(teamLink(), '직원용 링크를 복사했어요. 카톡으로 직원들에게 보내 주세요.'); break;
     case 'team-reset': T.pw = ''; prefs.set('team:pw', ''); T.data = null; T.setupShown = false; renderTeam(); break;
   }
@@ -1708,12 +1709,24 @@ function renderTeam(){
   if (!rows.length) h += '<section class="empty"><h2>아직 오늘 보낸 직원이 없어요</h2><p>직원이 링크를 열고 이름을 적으면 0콜로 먼저 보이고, 결과 버튼을 누를 때마다 숫자가 올라가요.</p></section>';
   rows.forEach(function(r){
     h += '<section class="trow"><div class="trow-h"><span class="w">' + esc(r.name || '이름 없음') + '</span><span class="n">' + (Number(r.total) || 0) + '<small>콜</small></span></div>' +
-      statGrid(r) + '<div class="tfoot"><span>' + (r.at ? hm(r.at) + ' 마지막 보고' : '') + '</span></div></section>';
+      statGrid(r) + '<div class="tfoot"><span>' + (r.at ? hm(r.at) + ' 마지막 보고' : '') + '</span>' +
+      '<button type="button" class="linkbtn' + (T.delAsk === r.dev ? ' bad' : '') + '" data-act="team-del" data-dev="' + esc(r.dev) + '">' + (T.delAsk === r.dev ? '한 번 더 누르면 삭제' : '삭제') + '</button></div></section>';
   });
   h += teamVisitsHTML(T.data.visits || []);
   h += '<button type="button" class="btn primary wide" data-act="team-link">직원용 링크 복사</button>' +
     '<div class="homefoot"><button type="button" class="linkbtn" data-act="team-reset">비밀번호 다시 넣기</button></div>';
   box.innerHTML = h;
+}
+async function teamDel(dev){
+  if (T.delAsk !== dev) { T.delAsk = dev; renderTeam(); setTimeout(function(){ if (T.delAsk === dev) { T.delAsk = null; if (route() === 'team') renderTeam(); } }, 4000); return; }
+  T.delAsk = null;
+  try {
+    var r = await fetch(T.url, { method:'POST', body:JSON.stringify({ act:'del', pw:T.pw, dev:dev, date:ymd(new Date()) }) });
+    var j = await r.json();
+    if (!j || !j.ok) throw new Error('fail');
+    T.data.rows = (T.data.rows || []).filter(function(x){ return x.dev !== dev; });
+    renderTeam(); toast('삭제했어요'); teamFetch();
+  } catch(e){ renderTeam(); toast('삭제하지 못했어요. 시트 코드를 새 버전으로 배포했는지 확인해 주세요.'); }
 }
 function teamVisitsHTML(vs){
   var h = '<section class="hcard"><div class="hk">방문예정 · 전체 ' + vs.length + '건</div>';
