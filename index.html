@@ -494,7 +494,7 @@ button.memo-view{display:block;width:100%;text-align:left;border:0;color:var(--i
 <div class="modal" id="nameModal" hidden>
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="nameTitle">
     <h2 id="nameTitle">이름을 적어 주세요</h2>
-    <p>마스터 화면에 이 이름으로 오늘 콜량이 보여요. 전화번호와 메모는 보내지 않아요.</p>
+    <p>오늘 내 콜량에 표시할 이름이에요.</p>
     <div class="field"><label for="nameInput" class="sr">이름</label><input id="nameInput" type="text" autocomplete="off" maxlength="30" placeholder="예: 홍길동"></div>
     <div class="btns"><button type="button" class="btn" data-close>나중에</button><button type="button" class="btn primary" data-act="name-save">저장</button></div>
   </div>
@@ -1620,11 +1620,11 @@ async function sendReport(){
 function refreshMine(){ if (route() === 'home') { var el = $('#myCount'); if (el) el.outerHTML = myCountHTML(); } }
 function myCountHTML(){
   if (!T.url) return '';
-  if (!T.name) return '<section class="hcard" id="myCount"><div class="hk">오늘 내 콜량</div><p>이름을 적으면 마스터에게 오늘 콜량(숫자만)이 보내져요.</p><button type="button" class="btn primary wide" data-act="name">이름 적기</button></section>';
+  if (!T.name) return '<section class="hcard" id="myCount"><div class="hk">오늘 내 콜량</div><p>이름을 적으면 오늘 콜량이 여기에 보여요.</p><button type="button" class="btn primary wide" data-act="name">이름 적기</button></section>';
   var c = todayCounts(), st = rep.state, msg;
-  if (st === 'sending') msg = '보내는 중…';
-  else if (st === 'fail') msg = '<span class="bad">못 보냄 · 인터넷이 되면 다시 보내요</span>';
-  else msg = rep.at ? hm(rep.at) + ' 마스터에게 보냄' : '결과를 누르면 마스터에게 보내져요';
+  if (st === 'sending') msg = '업데이트 중…';
+  else if (st === 'fail') msg = '<span class="bad">업데이트 안 됨 · 인터넷이 되면 다시 해요</span>';
+  else msg = rep.at ? hm(rep.at) + ' 업데이트 됨' : '';
   return '<section class="hcard" id="myCount"><div class="hk">오늘 내 콜량</div>' +
     '<div class="ttotal"><b>' + sumC(c) + '</b><span>콜</span></div>' + statGrid(c) +
     '<div class="tfoot"><span>' + msg + '</span><button type="button" class="linkbtn" data-act="name">' + esc(T.name) + ' · 이름 바꾸기</button></div></section>';
@@ -1634,7 +1634,7 @@ function saveName(){
   var v = $('#nameInput').value.replace(/\s+/g, ' ').trim().slice(0, 30);
   if (!v) { toast('이름을 적어 주세요'); return; }
   T.name = v; prefs.set('team:name', v); closeModal();
-  toast(v + ' 이름으로 콜량을 보내요');
+  toast(v + ' 이름으로 저장했어요');
   render(); flushReport();
 }
 
