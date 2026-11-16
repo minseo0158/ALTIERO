@@ -1582,7 +1582,7 @@ var T = {
 };
 if (!T.dev) { T.dev = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); prefs.set('team:dev', T.dev); }
 var REP_KEYS = ['noans','callback','visit','reject'];
-var rep = { sig: prefs.get('team:sig', ''), at: prefs.get('team:at', 0), state:'', timer:null, busy:false, again:false };
+var rep = { sig: '',   /* 앱을 열 때마다 한 번은 다시 보낸다 */ at: prefs.get('team:at', 0), state:'', timer:null, busy:false, again:false };
 
 function validUrl(u){ return /^https:\/\/script\.google(usercontent)?\.com\/\S+$/.test(u || ''); }
 function ymd(d){ return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
