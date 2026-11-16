@@ -1150,6 +1150,7 @@ function render(){
   else { renderHeader(); renderCards(); }
   renderDock();
   scheduleReport();
+  document.title = '알티에로 광안 콜 리스트 ' + (r === 'team' || (T.pw && !T.joined) ? '(마스터)' : '(업무폰)');
 }
 
 var SYNC = {
